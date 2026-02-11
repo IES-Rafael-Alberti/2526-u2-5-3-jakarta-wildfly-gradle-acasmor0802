@@ -1,0 +1,21 @@
+FROM quay.io/wildfly/wildfly:latest
+
+USER root
+
+# Crear usuario de administración
+RUN /opt/jboss/wildfly/bin/add-user.sh -u admin -p Admin1234! -s
+
+# Copiar el WAR al directorio de despliegues
+COPY build/libs/crud-file.war /opt/jboss/wildfly/standalone/deployments/crud-file.war
+
+# Asegurar permisos correctos
+RUN chown -R jboss:jboss /opt/jboss/wildfly/standalone
+
+# Copiar entrypoint
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Exponer puertos
+EXPOSE 8080 9990
+
+ENTRYPOINT ["/entrypoint.sh"]

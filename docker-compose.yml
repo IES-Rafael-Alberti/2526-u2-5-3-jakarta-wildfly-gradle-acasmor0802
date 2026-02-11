@@ -1,0 +1,68 @@
+services:
+  # ---- Servidor de aplicaciones WildFly ----
+  wildfly:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.wildfly
+    container_name: wildfly
+    volumes:
+      - wildfly-logs:/opt/jboss/wildfly/standalone/log
+      - wildfly-data:/opt/jboss/wildfly/standalone/data
+    networks:
+      - backend
+    expose:
+      - "8080"
+      # 9990 NO se expone al host: solo accesible internamente
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/crud-file/api/tasks || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+
+  # ---- Servidor web frontal Nginx (reverse proxy + TLS) ----
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-proxy
+    ports:
+      - "8088:80"
+      - "8443:443"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/certs:/etc/nginx/certs:ro
+      - nginx-logs:/var/log/nginx
+    depends_on:
+      wildfly:
+        condition: service_healthy
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sfk https://localhost:443 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  wildfly-logs:
+  wildfly-data:
+  nginx-logs:
